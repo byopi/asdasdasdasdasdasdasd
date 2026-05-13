@@ -6,8 +6,6 @@ from groq import Groq
 from flask import Flask
 import threading
 
-# --- CONFIGURACIÓN SEGURA ---
-# Usamos os.getenv para leer los tokens desde Render sin mostrarlos en el código
 TOKEN_TELEGRAM = os.getenv("TOKEN_TELEGRAM")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 ID_CANAL_LOGS = os.getenv("ID_CANAL_LOGS", "-100XXXXXXXXXX") 
@@ -62,7 +60,7 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await logger_to_channel(context, user_id, username, user_text)
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": user_text}],
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
         )
         await update.message.reply_text(chat_completion.choices[0].message.content)
         user_db[user_id]["conteo"] += 1
