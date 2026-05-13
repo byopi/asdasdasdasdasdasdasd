@@ -57,25 +57,21 @@ async def responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        # 1. Intentamos el log (si falla aquí, el bot sigue)
         await logger_to_channel(context, user_id, username, user_text)
 
-        # 2. Llamada a Groq con el modelo más actual
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": user_text}],
-            model="llama-3.1-8b-instant", # Cambiado a la versión 3.1
+            model="llama-3.1-8b-instant",
         )
         
-        await update.message.reply_text(chat_completion.choices[0].message.content)
+        respuesta_ia = chat_completion.choices[0].message.content
+        await update.message.reply_text(respuesta_ia, parse_mode="Markdown")
+        
         user_db[user_id]["conteo"] += 1
 
     except Exception as e:
-        # ESTA LÍNEA ES CLAVE: Imprimirá el error real en los logs de Render
-        print(f"--- ERROR CRÍTICO DETECTADO ---")
-        print(f"Tipo de error: {type(e).__name__}")
-        print(f"Mensaje: {e}")
-        print(f"-------------------------------")
-        await update.message.reply_text(f"Error técnico: {type(e).__name__}. Revisa los logs.")
+        print(f"Error en Groq: {e}")
+        await update.message.reply_text("Error técnico con Groq, intenta luego.")
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
