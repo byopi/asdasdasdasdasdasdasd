@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, ChatJoinRequestHandler, CallbackQueryHandler, CommandHandler, ContextTypes
 from telegram.error import TelegramError
@@ -67,7 +68,7 @@ def get_requirements_keyboard():
     channels = load_channels()
     keyboard = []
     for i, ch_data in enumerate(channels, 1):
-        keyboard.append([InlineKeyboardButton(text=f"📢 Unirse al Canal Requisito {i}", url=ch_data.get("link"))])
+        keyboard.append([InlineKeyboardButton(text=f"📢 Unirse al canal {i}", url=ch_data.get("link"))])
     keyboard.append([InlineKeyboardButton(text="🔄 Verificar y Aceptar", callback_data="refresh_status")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -110,7 +111,7 @@ async def handle_refresh(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await is_user_member(context.application, user_id):
         try:
             await context.bot.approve_chat_join_request(chat_id=chat_id, user_id=user_id)
-            await query.edit_message_text("¡Perfecto! Todo verificado. Tu solicitud ha sido aceptada.")
+            await query.edit_message_text("✅ ¡Perfecto! Todo verificado. Tu solicitud ha sido aceptada.")
             del pending[str(user_id)]
             save_pending(pending)
         except TelegramError as e:
@@ -160,8 +161,16 @@ def main():
     ptb_app.add_handler(CommandHandler("list", list_channels))
     ptb_app.add_handler(CommandHandler("clear", clear_channels))
 
-    print("🚀 Bot iniciado en Render con Polling y Variables de Entorno...")
-    ptb_app.run_polling(allowed_updates=Update.ALL_TYPES)
+    print("🚀 Bot iniciado en Render con Polling (Fix Python 3.14)...")
+    
+    # --- FIX ASYNCIO PARA PYTHON 3.14 ---
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+    ptb_app.run_polling(allowed_updates=Update.ALL_TYPES, close_loop=False)
 
 if __name__ == '__main__':
     main()
