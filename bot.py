@@ -5,20 +5,20 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, ChatJoinRequestHandler, CallbackQueryHandler, CommandHandler, ContextTypes
 from telegram.error import TelegramError
 
-# Configurar logs para ver qué pasa en la consola de Render
+# Configurar logs para Render
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 CHANNELS_FILE = "required_channels.json"
 PENDING_FILE = "pending_requests.json"
 
-# Reemplaza con tus datos reales o usa Variables de Entorno en Render
-ADMIN_ID = 1039793456  
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "TU_TOKEN_AQUI")
+# --- CONFIGURACIÓN POR VARIABLES DE ENTORNO ---
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
 
-CANALES_PRINCIPALES = [
-    -1001234567890,  # ID de tu Canal Principal 1
-    -1000987654321   # ID de tu Canal Principal 2
-]
+# Convertimos la cadena de texto separada por comas en una lista de enteros
+canales_raw = os.getenv("CANALES_PRINCIPALES", "")
+CANALES_PRINCIPALES = [int(x.strip()) for x in canales_raw.split(",") if x.strip().replace("-", "").isdigit()]
+# ----------------------------------------------
 
 def load_channels():
     if os.path.exists(CHANNELS_FILE):
@@ -148,17 +148,19 @@ async def clear_channels(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🧹 Lista vacía.")
 
 def main():
-    # Construir la app de Telegram nativa por Polling
+    if not TELEGRAM_TOKEN or not ADMIN_ID or not CANALES_PRINCIPALES:
+        print("❌ ERROR: Faltan variables de entorno obligatorias (TELEGRAM_TOKEN, ADMIN_ID o CANALES_PRINCIPALES).")
+        return
+
     ptb_app = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    # Registrar comandos y eventos
     ptb_app.add_handler(ChatJoinRequestHandler(handle_join_request))
     ptb_app.add_handler(CallbackQueryHandler(handle_refresh, pattern="refresh_status"))
     ptb_app.add_handler(CommandHandler("add", add_channel))
     ptb_app.add_handler(CommandHandler("list", list_channels))
     ptb_app.add_handler(CommandHandler("clear", clear_channels))
 
-    print("🚀 Bot iniciado en Render con Polling...")
+    print("🚀 Bot iniciado en Render con Polling y Variables de Entorno...")
     ptb_app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
