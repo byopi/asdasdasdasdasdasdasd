@@ -2,6 +2,8 @@ import os
 import json
 import logging
 import asyncio
+import threading
+from http.server import SimpleHTTPRequestHandler, HTTPServer
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, ChatJoinRequestHandler, CallbackQueryHandler, CommandHandler, ContextTypes
 from telegram.error import TelegramError
@@ -20,6 +22,24 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
 canales_raw = os.getenv("CANALES_PRINCIPALES", "")
 CANALES_PRINCIPALES = [int(x.strip()) for x in canales_raw.split(",") if x.strip().replace("-", "").isdigit()]
 # ----------------------------------------------
+
+# --- SERVIDOR WEB MINI PARA ENGAÑAR A RENDER ---
+def run_health_server():
+    # Render asigna automáticamente un puerto en la variable PORT
+    port = int(os.getenv("PORT", 8080))
+    server_address = ('', port)
+    
+    class HealthHandler(SimpleHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write(b"Bot activo y respondiendo")
+
+    httpd = HTTPServer(server_address, HealthHandler)
+    print(f"🌍 Servidor de respuesta web iniciado en el puerto {port}")
+    httpd.serve_forever()
+# -----------------------------------------------
 
 def load_channels():
     if os.path.exists(CHANNELS_FILE):
@@ -43,7 +63,7 @@ def load_pending():
                 return json.loads(content) if content else {}
         except json.JSONDecodeError:
             return {}
-    return {}
+    return []
 
 def save_pending(pending):
     with open(PENDING_FILE, "w") as f:
@@ -68,7 +88,7 @@ def get_requirements_keyboard():
     channels = load_channels()
     keyboard = []
     for i, ch_data in enumerate(channels, 1):
-        keyboard.append([InlineKeyboardButton(text=f"📢 Unirse al canal {i}", url=ch_data.get("link"))])
+        keyboard.append([InlineKeyboardButton(text=f"📢 Unirse al Canal Requisito {i}", url=ch_data.get("link"))])
     keyboard.append([InlineKeyboardButton(text="🔄 Verificar y Aceptar", callback_data="refresh_status")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -111,7 +131,7 @@ async def handle_refresh(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await is_user_member(context.application, user_id):
         try:
             await context.bot.approve_chat_join_request(chat_id=chat_id, user_id=user_id)
-            await query.edit_message_text("✅ ¡Perfecto! Todo verificado. Tu solicitud ha sido aceptada.")
+            await query.edit_message_text("¡Perfecto! Todo verificado. Tu solicitud ha sido aceptada.")
             del pending[str(user_id)]
             save_pending(pending)
         except TelegramError as e:
@@ -153,6 +173,11 @@ def main():
         print("❌ ERROR: Faltan variables de entorno obligatorias (TELEGRAM_TOKEN, ADMIN_ID o CANALES_PRINCIPALES).")
         return
 
+    # Lanzar el servidor web falso en un hilo secundario para que Render valide el puerto
+    web_thread = threading.Thread(target=run_health_server, daemon=True)
+    web_thread.start()
+
+    # Configuración del Bot de Telegram
     ptb_app = Application.builder().token(TELEGRAM_TOKEN).build()
 
     ptb_app.add_handler(ChatJoinRequestHandler(handle_join_request))
@@ -161,7 +186,7 @@ def main():
     ptb_app.add_handler(CommandHandler("list", list_channels))
     ptb_app.add_handler(CommandHandler("clear", clear_channels))
 
-    print("🚀 Bot iniciado en Render con Polling (Fix Python 3.14)...")
+    print("🚀 Bot iniciado en Render con Polling y Servidor Web integrado...")
     
     # --- FIX ASYNCIO PARA PYTHON 3.14 ---
     try:
